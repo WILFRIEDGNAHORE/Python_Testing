@@ -1,7 +1,6 @@
-import datetime
 import json
-from flask import Flask, make_response,render_template,request,redirect,flash,url_for
-
+from flask import Flask, render_template, request, redirect, flash, url_for, make_response
+from datetime import datetime
 
 def loadClubs():
     with open('clubs.json') as c:
@@ -12,6 +11,7 @@ def loadClubs():
 def loadCompetitions():
     with open('competitions.json') as comps:
          listOfCompetitions = json.load(comps)['competitions']
+         listOfCompetitions = checkCompetitionIsOver(listOfCompetitions)
          return listOfCompetitions
 
 def checkCompetitionIsOver(listOfCompetitions):
@@ -22,14 +22,14 @@ def checkCompetitionIsOver(listOfCompetitions):
         competition['over'] = competition_date < datetime.now()
         competitions.append(competition)
     return competitions
-
+        
 
 app = Flask(__name__)
 app.secret_key = 'something_special'
 
 competitions = loadCompetitions()
 clubs = loadClubs()
-Max_place_par_club = 12
+MAX_PLACES_PER_CLUB = 12
 
 @app.route('/')
 def index():
@@ -44,6 +44,8 @@ def showSummary():
         flash(f"Sorry, that email wasn't found.")
         response = make_response(render_template('index.html'))
         return response, 401
+    
+
 
 @app.route('/book/<competition>/<club>')
 def book(competition,club):
@@ -57,6 +59,7 @@ def book(competition,club):
     response = make_response(render_template('welcome.html', club=club, competitions=competitions))
     return response, 403
 
+
 @app.route('/purchasePlaces',methods=['POST'])
 def purchasePlaces():
     competition = [c for c in competitions if c['name'] == request.form['competition']][0]
@@ -65,7 +68,7 @@ def purchasePlaces():
     if not competition['over']:
         placesRequired = int(request.form['places'])
         if placesRequired <= int(club["points"]):
-            if placesRequired <= Max_place_par_club:
+            if placesRequired <= MAX_PLACES_PER_CLUB:
                 competition['numberOfPlaces'] = int(competition['numberOfPlaces'])-placesRequired
                 flash(f'Great-booking complete !')
                 return render_template('welcome.html', club=club, competitions=competitions)
@@ -78,6 +81,7 @@ def purchasePlaces():
     flash(message)
     response = make_response(render_template('welcome.html', club=club, competitions=competitions))
     return response, 403
+    
 
 
 # TODO: Add route for points display
