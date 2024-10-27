@@ -1,25 +1,29 @@
 import datetime
 import json
-from flask import Flask, make_response,render_template,request,redirect,flash,url_for
+from flask import Flask, make_response
+from flask import render_template, request, redirect, flash, url_for
 
 
-def loadClubs():
+def load_clubs():
     with open('clubs.json') as c:
-         listOfClubs = json.load(c)['clubs']
-         return listOfClubs
+        list_of_clubs = json.load(c)['clubs']
+    return list_of_clubs
 
 
-def loadCompetitions():
+def load_competitions():
     with open('competitions.json') as comps:
-         listOfCompetitions = json.load(comps)['competitions']
-         return listOfCompetitions
+        list_of_competitions = json.load(comps)['competitions']
+    return list_of_competitions
 
-def checkCompetitionIsOver(listOfCompetitions):
+
+def check_competition_is_over(list_of_competitions):
     competitions = []
-    for competition in listOfCompetitions:
+    for competition in list_of_competitions:
         competition['over'] = False
-        competition_date = datetime.strptime(competition["date"], "%Y-%m-%d %H:%M:%S")
-        competition['over'] = competition_date < datetime.now()
+        competition_date = datetime.datetime.strptime(
+            competition["date"], "%Y-%m-%d %H:%M:%S"
+        )
+        competition['over'] = competition_date < datetime.datetime.now()
         competitions.append(competition)
     return competitions
 
@@ -27,61 +31,86 @@ def checkCompetitionIsOver(listOfCompetitions):
 app = Flask(__name__)
 app.secret_key = 'something_special'
 
-competitions = loadCompetitions()
-clubs = loadClubs()
-Max_place_par_club = 12
+# Call the check_competition_is_over
+#  function to update competitions with the 'over' flag
+competitions = check_competition_is_over(load_competitions())
+clubs = load_clubs()
+MAX_PLACE_PAR_CLUB = 12
+COST_PLACE = 3
+
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
-@app.route('/showSummary',methods=['POST'])
-def showSummary():
-    try: 
-        club = [club for club in clubs if club['email'] == request.form['email']][0]
-        return render_template('welcome.html',club=club,competitions=competitions)
+
+@app.route('/showSummary', methods=['POST'])
+def show_summary():
+    try:
+        club = [club for club in clubs
+                if club['email'] == request.form['email']][0]
+        return render_template(
+            'welcome.html', club=club, competitions=competitions)
     except IndexError:
-        flash(f"Sorry, that email wasn't found.")
+        flash("Sorry, that email wasn't found.")
         response = make_response(render_template('index.html'))
         return response, 401
 
+
 @app.route('/book/<competition>/<club>')
-def book(competition,club):
-    try: 
-        foundClub = [c for c in clubs if c['name'] == club][0]
-        foundCompetition = [c for c in competitions if c['name'] == competition][0]
-        if foundClub and foundCompetition:
-            if not foundCompetition['over']:
-                return render_template('booking.html',club=foundClub,competition=foundCompetition)
+def book(competition, club):
+    try:
+        found_club = [c for c in clubs if c['name'] == club][0]
+        found_competition = [c for c in competitions
+                             if c['name'] == competition][0]
+        if found_club and found_competition:
+            if not found_competition['over']:
+                return render_template(
+                    'booking.html',
+                    club=found_club,
+                    competition=found_competition
+                                                )
+
         flash("Something went wrong-please try again")
-        response = make_response(render_template('welcome.html', club=club, competitions=competitions))
+        response = make_response(render_template(
+            'welcome.html', club=club, competitions=competitions))
         return response, 403
     except IndexError:
         flash("Something went wrong-please try again")
-        response = make_response(render_template('index.html', club=club, competitions=competitions))
+        response = make_response(render_template(
+            'index.html', club=club, competitions=competitions))
         return response, 400
 
-@app.route('/purchasePlaces',methods=['POST'])
-def purchasePlaces():
-    competition = [c for c in competitions if c['name'] == request.form['competition']][0]
+
+@app.route('/purchasePlaces', methods=['POST'])
+def purchase_places():
+    competition = [c for c in competitions
+                   if c['name'] == request.form['competition']][0]
     club = [c for c in clubs if c['name'] == request.form['club']][0]
     if not competition['over']:
-        placesRequired = int(request.form['places'])
-        if placesRequired <= int(club["points"]):
-            if placesRequired <= Max_place_par_club:
-                competition['numberOfPlaces'] = str(int(competition['numberOfPlaces'])-placesRequired)
-                club["points"] = str(int(club["points"]) - placesRequired)
-                print(type(club["points"]), club["points"], placesRequired)
-                flash(f'Great-booking complete !')
-                return render_template('welcome.html', club=club, competitions=competitions)
+        places_required = int(request.form['places'])
+        total_points_to_deduct = places_required * COST_PLACE
+        if total_points_to_deduct <= int(club["points"]):
+            if places_required <= MAX_PLACE_PAR_CLUB:
+                competition['numberOfPlaces'] = str(
+                    int(competition['numberOfPlaces']) - places_required
+                )
+                club["points"] = str(int
+                                     (club["points"]) - total_points_to_deduct)
+                flash('Great-booking complete!')
+                return render_template(
+                    'welcome.html', club=club, competitions=competitions)
             else:
-                message = "You should book no more than 12 places per competition"
+                message = "You should book"
+                " no more than 12 places per competition"
         else:
-            message = "You should not book more than yours available points"
+            message = 'Not enough points'
     else:
-        message = "The competition is over, the booking is closed !"
+        message = "The competition is over, the booking is closed!"
+
     flash(message)
-    response = make_response(render_template('welcome.html', club=club, competitions=competitions))
+    response = make_response(render_template(
+        'welcome.html', club=club, competitions=competitions))
     return response, 403
 
 
